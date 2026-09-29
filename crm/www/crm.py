@@ -63,6 +63,16 @@ def get_context_for_dev():
 	return get_boot()
 
 
+@frappe.whitelist(methods=["GET"])
+def get_csrf_token():
+	"""Return the current session's CSRF token.
+	
+	Used by the frontend to refresh the token on page load and bfcache restoration,
+	preventing stale token errors when duplicating tabs after logout/re-login.
+	"""
+	return frappe.sessions.get_csrf_token()
+
+
 def get_boot():
 	return frappe._dict(
 		{

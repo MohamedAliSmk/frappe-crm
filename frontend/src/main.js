@@ -58,6 +58,29 @@ app.use(telemetryPlugin, { app_name: 'crm' })
 
 app.config.globalProperties.$dialog = createDialog
 
+// Refresh CSRF token on page load and bfcache restoration to prevent stale token errors
+// when duplicating tabs after logout/re-login (fixes #2840)
+async function refreshCSRFToken() {
+  try {
+    const token = await frappeRequest({ url: '/api/method/crm.www.crm.get_csrf_token' })
+    if (token) {
+      window.csrf_token = token
+    }
+  } catch (error) {
+    console.error('Failed to refresh CSRF token:', error)
+  }
+}
+
+// Detect bfcache restoration (e.g., when duplicating a tab or navigating back) and refresh the token
+if (!import.meta.env.DEV) {
+  window.addEventListener('pageshow', (event) => {
+    if (event.persisted) {
+      // Page was restored from bfcache, refresh the CSRF token
+      refreshCSRFToken()
+    }
+  })
+}
+
 let socket
 if (import.meta.env.DEV) {
   frappeRequest({ url: '/api/method/crm.www.crm.get_context_for_dev' }).then(
@@ -71,9 +94,12 @@ if (import.meta.env.DEV) {
     },
   )
 } else {
-  socket = initSocket()
-  app.config.globalProperties.$socket = socket
-  app.mount('#app')
+  // In production, refresh CSRF token on initial load to ensure it's fresh
+  refreshCSRFToken().finally(() => {
+    socket = initSocket()
+    app.config.globalProperties.$socket = socket
+    app.mount('#app')
+  })
 }
 
 if (import.meta.env.DEV) {
